@@ -29,53 +29,60 @@ class MainWindow extends StatelessWidget {
           child: Column(
             children: [
               // ---- 顶栏：Statis 字样 + 设置按钮 + 窗口控制（可拖拽移动窗口）----
-              Padding(
-                padding: const EdgeInsets.fromLTRB(24, 8, 0, 4),
-                child: Row(
+              // 整条顶栏作为统一拖拽区；按钮的 tap 手势优先，按住拖动才交给窗口移动。
+              DragToMoveArea(
+                child: Column(
+                  mainAxisSize: MainAxisSize.min,
                   children: [
-                    Text(
-                      'statis',
-                      style: theme.textTheme.headlineMedium?.copyWith(
-                        fontWeight: FontWeight.w800,
-                        letterSpacing: 1.2,
+                    Padding(
+                      padding: const EdgeInsets.fromLTRB(24, 8, 0, 4),
+                      child: Row(
+                        children: [
+                          Text(
+                            'statis',
+                            style: theme.textTheme.headlineMedium?.copyWith(
+                              fontWeight: FontWeight.w800,
+                              letterSpacing: 1.2,
+                            ),
+                          ),
+                          const Spacer(),
+                          IconButton(
+                            tooltip: '设置',
+                            onPressed: () => showSettingsDialog(
+                                context, context.read<SettingsProvider>()),
+                            icon: const Icon(Icons.settings_outlined),
+                          ),
+                          // 自绘窗口控制按钮（系统标题栏已隐藏）。
+                          _WindowButton(
+                              icon: Icons.remove,
+                              tooltip: '最小化',
+                              onTap: () => windowManager.minimize()),
+                          _WindowButton(
+                              icon: Icons.crop_square,
+                              tooltip: '最大化/还原',
+                              onTap: () async {
+                                if (await windowManager.isMaximized()) {
+                                  await windowManager.unmaximize();
+                                } else {
+                                  await windowManager.maximize();
+                                }
+                              }),
+                          _WindowButton(
+                              icon: Icons.close,
+                              tooltip: '关闭',
+                              danger: true,
+                              onTap: () => windowManager.close()),
+                        ],
                       ),
                     ),
-                    const Spacer(),
-                    IconButton(
-                      tooltip: '设置',
-                      onPressed: () =>
-                          showSettingsDialog(context, context.read<SettingsProvider>()),
-                      icon: const Icon(Icons.settings_outlined),
-                    ),
-                    // 自绘窗口控制按钮（系统标题栏已隐藏）。
-                    _WindowButton(
-                        icon: Icons.remove,
-                        tooltip: '最小化',
-                        onTap: () => windowManager.minimize()),
-                    _WindowButton(
-                        icon: Icons.crop_square,
-                        tooltip: '最大化/还原',
-                        onTap: () async {
-                          if (await windowManager.isMaximized()) {
-                            await windowManager.unmaximize();
-                          } else {
-                            await windowManager.maximize();
-                          }
-                        }),
-                    _WindowButton(
-                        icon: Icons.close,
-                        tooltip: '关闭',
-                        danger: true,
-                        onTap: () => windowManager.close()),
+                    Divider(
+                        height: 1,
+                        indent: 24,
+                        endIndent: 24,
+                        color:
+                            theme.colorScheme.onSurface.withValues(alpha: 0.08)),
                   ],
                 ),
-              ),
-              DragToMoveArea(
-                child: Divider(
-                    height: 1,
-                    indent: 24,
-                    endIndent: 24,
-                    color: theme.colorScheme.onSurface.withValues(alpha: 0.08)),
               ),
               // ---- 两板块 ----
               Expanded(

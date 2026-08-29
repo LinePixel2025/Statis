@@ -30,8 +30,8 @@
 
 前往 [Releases](https://github.com/LinePixel2025/Statis/releases) 下载：
 
-- `Statis-Setup-1.0.0.exe` — 安装包
-- `Statis-1.0.0-portable.zip` — 免安装便携版
+- `Statis-Setup-1.0.1.exe` — 安装包
+- `Statis-1.0.1-portable.zip` — 免安装便携版
 
 ## 从源码构建
 
