@@ -1,5 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
+import 'package:window_manager/window_manager.dart';
 
 import '../providers/events_provider.dart';
 import '../providers/settings_provider.dart';
@@ -10,7 +11,7 @@ import '../ui/event_card.dart';
 import '../ui/glass_card.dart';
 import '../ui/settings_dialog.dart';
 
-/// 主界面：顶部 Statis 标题 + 设置按钮；下方两板块（事件 / AI 总结）。
+/// 主界面：顶部 Statis 标题 + 设置按钮 + 自绘窗口控制按钮；下方两板块（事件 / AI 总结）。
 class MainWindow extends StatelessWidget {
   const MainWindow({super.key});
 
@@ -27,9 +28,9 @@ class MainWindow extends StatelessWidget {
           constraints: const BoxConstraints(maxWidth: 960),
           child: Column(
             children: [
-              // ---- 顶栏：Statis 字样 + 设置按钮 ----
+              // ---- 顶栏：Statis 字样 + 设置按钮 + 窗口控制（可拖拽移动窗口）----
               Padding(
-                padding: const EdgeInsets.fromLTRB(24, 20, 12, 4),
+                padding: const EdgeInsets.fromLTRB(24, 8, 0, 4),
                 child: Row(
                   children: [
                     Text(
@@ -46,14 +47,36 @@ class MainWindow extends StatelessWidget {
                           showSettingsDialog(context, context.read<SettingsProvider>()),
                       icon: const Icon(Icons.settings_outlined),
                     ),
+                    // 自绘窗口控制按钮（系统标题栏已隐藏）。
+                    _WindowButton(
+                        icon: Icons.remove,
+                        tooltip: '最小化',
+                        onTap: () => windowManager.minimize()),
+                    _WindowButton(
+                        icon: Icons.crop_square,
+                        tooltip: '最大化/还原',
+                        onTap: () async {
+                          if (await windowManager.isMaximized()) {
+                            await windowManager.unmaximize();
+                          } else {
+                            await windowManager.maximize();
+                          }
+                        }),
+                    _WindowButton(
+                        icon: Icons.close,
+                        tooltip: '关闭',
+                        danger: true,
+                        onTap: () => windowManager.close()),
                   ],
                 ),
               ),
-              Divider(
-                  height: 1,
-                  indent: 24,
-                  endIndent: 24,
-                  color: theme.colorScheme.onSurface.withValues(alpha: 0.08)),
+              DragToMoveArea(
+                child: Divider(
+                    height: 1,
+                    indent: 24,
+                    endIndent: 24,
+                    color: theme.colorScheme.onSurface.withValues(alpha: 0.08)),
+              ),
               // ---- 两板块 ----
               Expanded(
                 child: ListView(
@@ -120,6 +143,41 @@ class MainWindow extends StatelessWidget {
         onPressed: () => showAddEventDialog(context, events),
         icon: const Icon(Icons.add),
         label: const Text('添加事件'),
+      ),
+    );
+  }
+}
+
+/// 顶栏窗口控制按钮（最小化/最大化/关闭）。
+class _WindowButton extends StatelessWidget {
+  const _WindowButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onTap,
+    this.danger = false,
+  });
+
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onTap;
+  final bool danger;
+
+  @override
+  Widget build(BuildContext context) {
+    final theme = Theme.of(context);
+    return Tooltip(
+      message: tooltip,
+      child: InkWell(
+        borderRadius: BorderRadius.circular(8),
+        onTap: onTap,
+        child: Padding(
+          padding: const EdgeInsets.all(10),
+          child: Icon(
+            icon,
+            size: 20,
+            color: danger ? theme.colorScheme.onSurfaceVariant : null,
+          ),
+        ),
       ),
     );
   }
