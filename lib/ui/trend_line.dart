@@ -1,30 +1,59 @@
 import 'package:flutter/material.dart';
 
-/// 近 365 天趋势折线图：
+import 'github_style.dart';
+
+/// 近 N 天趋势折线图（窗口自适应数据跨度）：
 /// - 日频次经 7 日滚动均值后以 Catmull-Rom 平滑成曲线；
-/// - 左侧整数频次刻度 + 底部月份标注，阅读有参照；
-/// - 有记录的日期打主题色圆点，曲线下方渐变面积填充。
+/// - 窗口按数据实际跨度伸缩（至少 30 天、最多 365 天），稀疏记录时曲线摆动可见；
+/// - 峰值处标注圆点与「峰值 N/日」，左侧整数刻度 + 底部月份标注；
+/// - 支持鼠标悬停，显示该点日期与当日次数。
 class TrendLinePainter extends CustomPainter {
   TrendLinePainter({
     required this.counts, // 日期(仅取年月日) -> 当日次数
     required this.themeColor,
-    required this.labelColor, // 刻度/月份文字颜色（跟随面板反色）
-    this.days = 365,
+    required this.labelColor, // 刻度/月份文字颜色
+    this.daysOverride, // 允许外部固定窗口；null 则按数据跨度自动计算
   });
 
   final Map<DateTime, int> counts;
   final Color themeColor;
   final Color labelColor;
-  final int days;
+  final int? daysOverride;
 
   static const double _padLeft = 24;
   static const double _padRight = 8;
   static const double _padTop = 10;
   static const double _padBottom = 16;
 
+  /// 滑动平均窗口（用于平滑单日尖刺）。
+  static const int _smooth = 7;
+
+  /// 内部状态：当前悬停的天数索引（从窗口起始日算起），-1 表示无悬停。
+  int hoverIndex = -1;
+
+  /// 依据 counts 计算实际展示窗口天数（至少 [_minDays] 天，最多 365 天）。
+  static int effectiveDays(Map<DateTime, int> counts, {int? override}) {
+    if (override != null && override > 0) return override;
+    if (counts.isEmpty) return 30;
+    final now = DateTime.now();
+    final today = DateTime(now.year, now.month, now.day);
+    // 最早有记录的日子。
+    DateTime? earliest;
+    for (final d in counts.keys) {
+      final day = DateTime(d.year, d.month, d.day);
+      if (earliest == null || day.isBefore(earliest)) earliest = day;
+    }
+    if (earliest == null) return 30;
+    final span = today.difference(earliest).inDays + 1;
+    // 预留 [2 * _smooth] 天给滑动均值采样，避免滑动窗口边缘被截断。
+    return span.clamp(30, 365);
+  }
+
   @override
   void paint(Canvas canvas, Size size) {
     if (size.width <= 0 || size.height <= 0) return;
+
+    final days = effectiveDays(counts, override: daysOverride);
 
     // 1) 对齐到逐日频次数组（末尾为今天）。
     final now = DateTime.now();
@@ -39,8 +68,8 @@ class TrendLinePainter extends CustomPainter {
 
     // 2) 7 日中心滚动均值，抹平单日尖刺突出趋势。
     final smoothed = List<double>.generate(days, (i) {
-      final lo = (i - 3).clamp(0, days - 1);
-      final hi = (i + 3).clamp(0, days - 1);
+      final lo = (i - _smooth ~/ 2).clamp(0, days - 1);
+      final hi = (i + _smooth ~/ 2).clamp(0, days - 1);
       var sum = 0;
       for (var j = lo; j <= hi; j++) {
         sum += daily[j];
@@ -60,7 +89,7 @@ class TrendLinePainter extends CustomPainter {
     // 3) 整数频次网格线 + 左侧刻度数字。
     final gridStep = (yMax / 3).ceilToDouble().clamp(1, double.infinity);
     final grid = Paint()
-      ..color = themeColor.withValues(alpha: 0.10)
+      ..color = GithubStyle.border.withValues(alpha: 0.6)
       ..strokeWidth = 1;
     for (var g = gridStep; g <= yMax; g += gridStep) {
       final gy = y(g.toDouble());
@@ -73,23 +102,13 @@ class TrendLinePainter extends CustomPainter {
       Offset(_padLeft, y(0)),
       Offset(size.width - _padRight, y(0)),
       Paint()
-        ..color = themeColor.withValues(alpha: 0.22)
+        ..color = GithubStyle.border
         ..strokeWidth = 1,
     );
 
-    // 4) 底部月份标注（每 2 个月一个，避免拥挤）。
-    int? lastLabelMonth;
-    for (var i = 0; i < days; i++) {
-      final d = start.add(Duration(days: i));
-      if (d.month != lastLabelMonth && d.day <= 3 && i > 0) {
-        lastLabelMonth = d.month;
-        if (d.month.isOdd) {
-          _paintLabel(canvas, '${d.month}月',
-              Offset(x(i), size.height - _padBottom + 3),
-              align: 0.5, small: true);
-        }
-      }
-    }
+    // 4) 底部时间标注：窗口宽则按月、窗口短则按周/半月自适应，避免重叠。
+    final labelGap = _timeLabelGap(days);
+    _paintTimeLabels(canvas, start, days, size, labelGap, x);
 
     // 5) Catmull-Rom 平滑曲线。
     final pts = [for (var i = 0; i < days; i++) Offset(x(i), y(smoothed[i]))];
@@ -138,18 +157,138 @@ class TrendLinePainter extends CustomPainter {
         ..isAntiAlias = true,
     );
 
-    // 8) 有记录的日期打圆点；末端亮点强调最新状态。
-    final dot = Paint()..color = themeColor;
+    // 8) 有记录的日期打圆点（淡色）。
+    final dot = Paint()..color = themeColor.withValues(alpha: 0.25);
     for (var i = 0; i < days; i++) {
       if (daily[i] > 0) {
-        canvas.drawCircle(Offset(x(i), y(daily[i].toDouble())), 2.2, dot);
+        canvas.drawCircle(Offset(x(i), y(daily[i].toDouble())), 2.0, dot);
       }
     }
-    canvas.drawCircle(
-      Offset(x(days - 1), y(smoothed.last)),
-      3,
-      Paint()..color = themeColor,
-    );
+
+    // 9) 峰值标注：平滑曲线最高点。
+    var peakIdx = 0;
+    for (var i = 1; i < days; i++) {
+      if (smoothed[i] > smoothed[peakIdx]) peakIdx = i;
+    }
+    if (smoothed[peakIdx] > 0) {
+      final peakP = Offset(x(peakIdx), y(smoothed[peakIdx]));
+      canvas.drawCircle(
+          peakP, 3.5, Paint()..color = themeColor);
+      // 峰值标签，置于点上方；靠右时左移避免出界。
+      final peakLabel = '峰值 ${smoothed[peakIdx].round()}/日';
+      final tp = TextPainter(
+        text: TextSpan(
+          text: peakLabel,
+          style: TextStyle(
+            fontSize: 9,
+            color: themeColor,
+            fontWeight: FontWeight.w700,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final labelX = (peakP.dx - tp.width / 2)
+          .clamp(_padLeft, size.width - _padRight - tp.width);
+      canvas.drawRRect(
+        RRect.fromRectAndRadius(
+          Rect.fromLTWH(labelX, peakP.dy - 20, tp.width + 8, tp.height + 4),
+          const Radius.circular(3),
+        ),
+        Paint()..color = Colors.white.withValues(alpha: 0.9),
+      );
+      tp.paint(
+          canvas,
+          Offset(labelX + 4, peakP.dy - 18));
+    }
+
+    // 10) 悬停高亮：竖线 + 当日数据点 + 小工具条。
+    final hover = hoverIndex;
+    if (hover >= 0 && hover < days) {
+      final hx = x(hover);
+      final hy = y(smoothed[hover]);
+      // 竖参考线。
+      canvas.drawLine(
+        Offset(hx, _padTop),
+        Offset(hx, size.height - _padBottom),
+        Paint()
+          ..color = themeColor.withValues(alpha: 0.15)
+          ..strokeWidth = 1,
+      );
+      canvas.drawCircle(Offset(hx, hy), 4, Paint()..color = themeColor);
+      canvas.drawCircle(
+        Offset(hx, hy),
+        7,
+        Paint()
+          ..color = themeColor.withValues(alpha: 0.2)
+          ..style = PaintingStyle.stroke
+          ..strokeWidth = 2,
+      );
+      // 工具条文本。
+      final d = start.add(Duration(days: hover));
+      final label =
+          '${d.month}/${d.day} · ${daily[hover]} 次';
+      final tp = TextPainter(
+        text: TextSpan(
+          text: label,
+          style: TextStyle(
+            fontSize: 10,
+            color: Colors.white,
+            fontWeight: FontWeight.w600,
+          ),
+        ),
+        textDirection: TextDirection.ltr,
+      )..layout();
+      final boxW = tp.width + 12;
+      final boxH = tp.height + 6;
+      // 工具条默认放点上方，避免出界时移到下方。
+      var bx = (hx - boxW / 2)
+          .clamp(0.0, size.width - boxW);
+      var by = hy - boxH - 10;
+      if (by < 0) by = hy + 10;
+      final rrect = RRect.fromRectAndRadius(
+        Rect.fromLTWH(bx, by, boxW, boxH),
+        const Radius.circular(4),
+      );
+      canvas.drawRRect(rrect, Paint()..color = const Color(0xD9202629));
+      tp.paint(canvas, Offset(bx + 6, by + 3));
+    }
+  }
+
+  /// 根据窗口天数决定底部时间标签的间隔单位。
+  double _timeLabelGap(int days) {
+    // 返回标签间隔的天数：窗口越短间隔越小，避免重叠又保留足够信息。
+    if (days <= 45) return 7; // 每周一标
+    if (days <= 120) return 30; // 每 30 天一标
+    return 60; // 每 2 个月一标
+  }
+
+  void _paintTimeLabels(Canvas canvas, DateTime start, int days, Size size,
+      double gapDays, double Function(int) xOf) {
+    // 采样若干时间点作为标签锚点。
+    final anchors = <int>[];
+    for (var i = 0; i < days; i += gapDays.round()) {
+      anchors.add(i);
+    }
+    if (anchors.isEmpty || anchors.last != days - 1) anchors.add(days - 1);
+    final tp = TextPainter(textDirection: TextDirection.ltr);
+    for (final i in anchors) {
+      final d = start.add(Duration(days: i));
+      final text = days <= 45
+          ? '${d.month}/${d.day}'
+          : '${d.month}月';
+      tp.text = TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: 9,
+          color: labelColor.withValues(alpha: 0.75),
+          height: 1.0,
+        ),
+      );
+      tp.layout();
+      final dx = (xOf(i) - tp.width / 2)
+          .clamp(0.0, size.width - tp.width);
+      tp.paint(canvas, Offset(dx, size.height - _padBottom + 4));
+    }
   }
 
   /// 用 TextPainter 画小字标签；align: 0 左对齐、0.5 居中、1 右对齐（垂直居中于 y）。
@@ -180,6 +319,7 @@ class TrendLinePainter extends CustomPainter {
     return old.themeColor != themeColor ||
         old.labelColor != labelColor ||
         old.counts.length != counts.length ||
-        old.days != days;
+        old.daysOverride != daysOverride ||
+        old.hoverIndex != hoverIndex;
   }
 }

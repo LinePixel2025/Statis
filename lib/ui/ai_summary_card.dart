@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:markdown_widget/markdown_widget.dart';
 
+import '../ui/github_style.dart';
 import '../ui/glass_card.dart';
 
 /// 渲染 AI 总结文本（Markdown -> 简洁样式）。
@@ -18,13 +19,9 @@ class AiSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return GlassCard(
-      // Builder 在 GlassCard 的 Theme 覆盖之内取主题，反色才会作用到正文。
-      child: Builder(builder: (context) {
-        final theme = Theme.of(context);
-        final bodyStyle =
-            theme.textTheme.bodyMedium!.copyWith(height: 1.45);
-        return Column(
+      child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -45,7 +42,9 @@ class AiSummaryCard extends StatelessWidget {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             config: MarkdownConfig(configs: [
-              PConfig(textStyle: bodyStyle),
+              PConfig(
+                  textStyle: theme.textTheme.bodyMedium!
+                      .copyWith(height: 1.45, color: GithubStyle.text)),
               H1Config(
                   style: theme.textTheme.titleMedium!
                       .copyWith(fontWeight: FontWeight.w700)),
@@ -56,8 +55,7 @@ class AiSummaryCard extends StatelessWidget {
             ]),
           ),
         ],
-        );
-      }),
+      ),
     );
   }
 }

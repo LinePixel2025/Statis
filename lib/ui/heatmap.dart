@@ -1,6 +1,8 @@
 import 'package:flutter/material.dart';
 
-/// GitHub 风格 365 天热力图，按事件记录频次着色，主题色渐变。
+import 'github_style.dart';
+
+/// GitHub 风格 365 天热力图：空档固定浅灰绿，有记录按主题色渐变着色。
 class HeatmapPainter extends CustomPainter {
   HeatmapPainter({
     required this.counts, // 日期(仅取年月日) -> 当日次数
@@ -31,7 +33,7 @@ class HeatmapPainter extends CustomPainter {
         .subtract(Duration(days: (weeks - 1) * 7))
         .subtract(Duration(days: today.weekday - 1));
 
-    final empty = Paint()..color = themeColor.withValues(alpha: 0.08);
+    final empty = Paint()..color = GithubStyle.heatmapEmpty;
     for (int w = 0; w < weeks; w++) {
       for (int d = 0; d < 7; d++) {
         final day = start.add(Duration(days: w * 7 + d));

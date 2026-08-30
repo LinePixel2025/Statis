@@ -1,5 +1,3 @@
-import 'dart:ui' show ImageFilter;
-
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 import 'package:window_manager/window_manager.dart';
@@ -10,14 +8,14 @@ import '../services/ai_summary_provider.dart';
 import '../ui/add_event_dialog.dart';
 import '../ui/ai_summary_card.dart';
 import '../ui/event_card.dart';
+import '../ui/github_style.dart';
 import '../ui/glass_card.dart';
 import '../ui/settings_dialog.dart';
 
-/// 顶栏内容高度与渐变模糊遮罩向下延伸的高度。
+/// 顶栏内容高度。
 const double _kBarHeight = 60;
-const double _kBlurHeight = 96;
 
-/// 主界面：顶栏悬浮（渐变模糊遮罩，滚动内容在其下柔和隐没）+ 两板块（事件 / AI 总结）。
+/// 主界面：GitHub 风格顶栏（白底 + 底部 1px 分隔线，悬浮）+ 两板块（事件 / AI 总结）。
 class MainWindow extends StatelessWidget {
   const MainWindow({super.key});
 
@@ -28,16 +26,13 @@ class MainWindow extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      // 内容列随窗口宽度伸缩（不再固定 960 上限），最大化/拖拽调整时组件跟随变大。
       body: Stack(
             fit: StackFit.expand,
-            clipBehavior: Clip.none,
             children: [
-              // ---- 内容列表：滚动时从顶栏下方经过，被渐变模糊柔和遮挡 ----
+              // ---- 内容列表 ----
               ListView(
                 padding: const EdgeInsets.fromLTRB(24, _kBarHeight + 14, 24, 32),
                 children: [
-                  // 板块一：事件
                   SectionHeader(icon: Icons.event_repeat, title: '事件'),
                   const SizedBox(height: 12),
                   ...events.events.map(
@@ -67,9 +62,7 @@ class MainWindow extends StatelessWidget {
                           const SizedBox(width: 12),
                           Text('正在生成全局总结…',
                               style: TextStyle(
-                                  color: Theme.of(context)
-                                      .colorScheme
-                                      .onSurface)),
+                                  color: GithubStyle.textMuted)),
                         ],
                       )),
                     )
@@ -106,132 +99,74 @@ class MainWindow extends StatelessWidget {
   }
 }
 
-/// 顶栏：Statis 字样 + 设置按钮 + 窗口控制（整条可拖拽移动窗口），
-/// 背景为向下淡出的渐变模糊遮罩，替代原先的硬边分隔线。
+/// 顶栏：Statis 字样 + 设置按钮 + 窗口控制（整条可拖拽移动窗口）。
+/// GitHub 风格：白底 + 底部 1px 边框，深色标题，窗口按钮悬停浅灰。
 class _TitleBar extends StatelessWidget {
   const _TitleBar();
 
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    // 标题与按钮压在 surface 着色 0.5 的模糊带上，按“着色后”的实际亮度反色。
-    final fg = foregroundOnTintedBackdrop(context, tintOpacity: 0.5);
-    return SizedBox(
+    return Container(
       height: _kBarHeight,
-      child: Stack(
-        clipBehavior: Clip.none,
-        children: [
-          // 渐变模糊层（不拦截指针）。
-          // 注意：BackdropFilter 不能放进 ShaderMask——ShaderMask 的独立图层会让
-          // 模糊采样不到屏幕背后的内容。这里用多层带状模糊叠加模拟“自上而下淡出”：
-          // 每层覆盖区域递减、sigma 递减，顶部累计最强。着色渐变单独用 ShaderMask 叠加。
-          Positioned(
-            top: 0,
-            left: -24,
-            right: -24,
-            height: _kBlurHeight,
-            child: IgnorePointer(
-              child: Stack(
-                fit: StackFit.expand,
-                children: [
-                  const _BlurBand(sigma: 4, bottomInset: 0),
-                  const _BlurBand(sigma: 8, bottomInset: _kBlurHeight * 1 / 3),
-                  const _BlurBand(sigma: 12, bottomInset: _kBlurHeight * 2 / 3),
-                  ShaderMask(
-                    shaderCallback: (rect) => const LinearGradient(
-                      begin: Alignment.topCenter,
-                      end: Alignment.bottomCenter,
-                      colors: [
-                        Color(0xFF000000),
-                        Color(0xD9000000),
-                        Color(0x00000000),
-                      ],
-                      stops: [0.0, 0.55, 1.0],
-                    ).createShader(rect),
-                    blendMode: BlendMode.dstIn,
-                    child: Container(
-                      color: theme.colorScheme.surface.withValues(alpha: 0.5),
-                    ),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          DragToMoveArea(
-            child: Padding(
-              padding: const EdgeInsets.fromLTRB(24, 6, 8, 0),
-              child: Row(
-                children: [
-                  Text(
-                    'Statis',
-                    style: theme.textTheme.headlineMedium?.copyWith(
-                      fontWeight: FontWeight.w800,
-                      letterSpacing: 1.2,
-                      fontFamily: 'Microsoft YaHei',
-                      fontFamilyFallback: const ['微软雅黑', 'Segoe UI'],
-                      color: fg,
-                    ),
-                  ),
-                  const Spacer(),
-                  IconButton(
-                    tooltip: '设置',
-                    color: fg,
-                    onPressed: () => showSettingsDialog(
-                        context, context.read<SettingsProvider>()),
-                    icon: const Icon(Icons.settings_outlined),
-                  ),
-                  // 自绘窗口控制按钮（系统标题栏已隐藏）。
-                  _WindowButton(
-                      icon: Icons.remove,
-                      tooltip: '最小化',
-                      onTap: () => windowManager.minimize()),
-                  _WindowButton(
-                      icon: Icons.crop_square,
-                      tooltip: '最大化/还原',
-                      onTap: () async {
-                        if (await windowManager.isMaximized()) {
-                          await windowManager.unmaximize();
-                        } else {
-                          await windowManager.maximize();
-                        }
-                      }),
-                  _WindowButton(
-                      icon: Icons.close,
-                      tooltip: '关闭',
-                      danger: true,
-                      onTap: () => windowManager.close()),
-                ],
-              ),
-            ),
-          ),
-        ],
+      decoration: const BoxDecoration(
+        color: GithubStyle.surface,
+        border: Border(
+          bottom: BorderSide(color: GithubStyle.border, width: 1),
+        ),
       ),
-    );
-  }
-}
-
-/// 顶栏渐变模糊的单层带状模糊：从顶部起、底部按 bottomInset 收缩。
-class _BlurBand extends StatelessWidget {
-  const _BlurBand({required this.sigma, required this.bottomInset});
-
-  final double sigma;
-  final double bottomInset;
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: EdgeInsets.only(bottom: bottomInset),
-      child: ClipRect(
-        child: BackdropFilter(
-          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
-          child: const SizedBox.expand(),
+      child: DragToMoveArea(
+        child: Padding(
+          padding: const EdgeInsets.fromLTRB(24, 6, 8, 0),
+          child: Row(
+            children: [
+              Text(
+                'Statis',
+                style: theme.textTheme.headlineMedium?.copyWith(
+                  fontWeight: FontWeight.w800,
+                  letterSpacing: 0.5,
+                  fontFamily: 'Microsoft YaHei',
+                  fontFamilyFallback: const ['微软雅黑', 'Segoe UI'],
+                  color: GithubStyle.text,
+                ),
+              ),
+              const Spacer(),
+              IconButton(
+                tooltip: '设置',
+                color: GithubStyle.textMuted,
+                onPressed: () => showSettingsDialog(
+                    context, context.read<SettingsProvider>()),
+                icon: const Icon(Icons.settings_outlined),
+              ),
+              // 自绘窗口控制按钮（系统标题栏已隐藏）。
+              _WindowButton(
+                  icon: Icons.remove,
+                  tooltip: '最小化',
+                  onTap: () => windowManager.minimize()),
+              _WindowButton(
+                  icon: Icons.crop_square,
+                  tooltip: '最大化/还原',
+                  onTap: () async {
+                    if (await windowManager.isMaximized()) {
+                      await windowManager.unmaximize();
+                    } else {
+                      await windowManager.maximize();
+                    }
+                  }),
+              _WindowButton(
+                  icon: Icons.close,
+                  tooltip: '关闭',
+                  danger: true,
+                  onTap: () => windowManager.close()),
+            ],
+          ),
         ),
       ),
     );
   }
 }
 
-/// 顶栏窗口控制按钮（最小化/最大化/关闭），前景色随背景亮度自动反色。
+/// 顶栏窗口控制按钮（最小化/最大化/关闭），深色图标 + 悬停浅灰背景。
 class _WindowButton extends StatelessWidget {
   const _WindowButton({
     required this.icon,
@@ -247,18 +182,18 @@ class _WindowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = foregroundOnTintedBackdrop(context, tintOpacity: 0.5);
     return Tooltip(
       message: tooltip,
       child: InkWell(
-        borderRadius: BorderRadius.circular(8),
+        borderRadius: BorderRadius.circular(GithubStyle.radius),
+        hoverColor: GithubStyle.canvasHover,
         onTap: onTap,
         child: Padding(
           padding: const EdgeInsets.all(10),
           child: Icon(
             icon,
             size: 20,
-            color: danger ? fg.withValues(alpha: 0.7) : fg,
+            color: danger ? GithubStyle.danger : GithubStyle.textMuted,
           ),
         ),
       ),
@@ -275,24 +210,20 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
+    final theme = Theme.of(context);
     return GlassCard(
-      opacity: 0.3,
-      padding: const EdgeInsets.all(24),
-      child: Builder(builder: (context) {
-        final theme = Theme.of(context);
-        return Column(
-          children: [
-            Icon(icon, size: 32, color: theme.colorScheme.onSurfaceVariant),
-            const SizedBox(height: 8),
-            Text(
-              text,
-              textAlign: TextAlign.center,
-              style: theme.textTheme.bodySmall
-                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-            ),
-          ],
-        );
-      }),
+      child: Column(
+        children: [
+          Icon(icon, size: 32, color: GithubStyle.textMuted),
+          const SizedBox(height: 8),
+          Text(
+            text,
+            textAlign: TextAlign.center,
+            style: theme.textTheme.bodySmall
+                ?.copyWith(color: GithubStyle.textMuted),
+          ),
+        ],
+      ),
     );
   }
 }

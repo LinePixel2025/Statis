@@ -2,6 +2,7 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/material.dart';
 
 import '../providers/settings_provider.dart';
+import 'github_style.dart';
 
 /// 设置弹窗：AI / 个性化 两个选项卡。
 Future<void> showSettingsDialog(
@@ -21,7 +22,8 @@ Future<void> showSettingsDialog(
     builder: (ctx) {
       return StatefulBuilder(
         builder: (ctx, setState) => AlertDialog(
-          title: const Text('设置'),
+          title: const Text('设置',
+              style: TextStyle(color: GithubStyle.text)),
           content: DefaultTabController(
             length: 2,
             child: SizedBox(
@@ -116,8 +118,11 @@ Future<void> showSettingsDialog(
                                         ),
                                       ),
                                       child: themeColor.toARGB32() == c.toARGB32()
-                                          ? const Icon(Icons.check,
-                                              size: 18, color: Colors.white)
+                                          ? Icon(Icons.check,
+                                              size: 18,
+                                              color: ThemeData.estimateBrightnessForColor(c) == Brightness.dark
+                                                  ? Colors.white
+                                                  : Colors.black)
                                           : null,
                                     ),
                                   ),
