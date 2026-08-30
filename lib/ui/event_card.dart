@@ -119,16 +119,19 @@ class _EventCardState extends State<EventCard> {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final color = theme.colorScheme.primary;
     final trendKind = context.watch<SettingsProvider>().trendKind;
     final records = widget.events.recordsOf(widget.event.id!);
     final total = records.length;
     final last = records.isEmpty ? null : records.first.occurredAt;
     final summary = widget.ai.summaryOf(widget.event.id!);
+    final counts = countByDay(records.map((r) => r.occurredAt));
 
     return GlassCard(
-      child: Column(
+      // Builder 在 GlassCard 的 Theme 覆盖之内取主题，反色才会作用到卡片文字。
+      child: Builder(builder: (context) {
+        final theme = Theme.of(context);
+        final color = theme.colorScheme.primary;
+        return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           // ---- 头部紧凑摘要行（始终显示）----
@@ -201,17 +204,15 @@ class _EventCardState extends State<EventCard> {
             Divider(height: 1, color: theme.colorScheme.onSurface.withValues(alpha: 0.08)),
             const SizedBox(height: 12),
             SizedBox(
-              height: 80,
+              height: 92,
               width: double.infinity,
               child: CustomPaint(
                 painter: trendKind == TrendKind.heatmap
-                    ? HeatmapPainter(
-                        counts: countByDay(records.map((r) => r.occurredAt)),
-                        themeColor: color,
-                      )
+                    ? HeatmapPainter(counts: counts, themeColor: color)
                     : TrendLinePainter(
-                        counts: countByDay(records.map((r) => r.occurredAt)),
+                        counts: counts,
                         themeColor: color,
+                        labelColor: theme.colorScheme.onSurfaceVariant,
                       ),
               ),
             ),
@@ -247,7 +248,8 @@ class _EventCardState extends State<EventCard> {
             ),
           ],
         ],
-      ),
+        );
+      }),
     );
   }
 }

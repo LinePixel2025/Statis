@@ -18,11 +18,13 @@ class AiSummaryCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
-    final bodyStyle =
-        theme.textTheme.bodyMedium!.copyWith(height: 1.45);
     return GlassCard(
-      child: Column(
+      // Builder 在 GlassCard 的 Theme 覆盖之内取主题，反色才会作用到正文。
+      child: Builder(builder: (context) {
+        final theme = Theme.of(context);
+        final bodyStyle =
+            theme.textTheme.bodyMedium!.copyWith(height: 1.45);
+        return Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Row(
@@ -54,7 +56,8 @@ class AiSummaryCard extends StatelessWidget {
             ]),
           ),
         ],
-      ),
+        );
+      }),
     );
   }
 }

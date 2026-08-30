@@ -1,16 +1,26 @@
 import 'package:flutter/material.dart';
 
-/// 近 365 天趋势折线图：日频次经 7 日滚动均值平滑，主题色描边 + 渐变面积填充。
+/// 近 365 天趋势折线图：
+/// - 日频次经 7 日滚动均值后以 Catmull-Rom 平滑成曲线；
+/// - 左侧整数频次刻度 + 底部月份标注，阅读有参照；
+/// - 有记录的日期打主题色圆点，曲线下方渐变面积填充。
 class TrendLinePainter extends CustomPainter {
   TrendLinePainter({
     required this.counts, // 日期(仅取年月日) -> 当日次数
     required this.themeColor,
+    required this.labelColor, // 刻度/月份文字颜色（跟随面板反色）
     this.days = 365,
   });
 
   final Map<DateTime, int> counts;
   final Color themeColor;
+  final Color labelColor;
   final int days;
+
+  static const double _padLeft = 24;
+  static const double _padRight = 8;
+  static const double _padTop = 10;
+  static const double _padBottom = 16;
 
   @override
   void paint(Canvas canvas, Size size) {
@@ -22,7 +32,8 @@ class TrendLinePainter extends CustomPainter {
     final start = today.subtract(Duration(days: days - 1));
     final daily = List<int>.filled(days, 0);
     for (final e in counts.entries) {
-      final idx = DateTime(e.key.year, e.key.month, e.key.day).difference(start).inDays;
+      final idx =
+          DateTime(e.key.year, e.key.month, e.key.day).difference(start).inDays;
       if (idx >= 0 && idx < days) daily[idx] += e.value;
     }
 
@@ -38,43 +49,65 @@ class TrendLinePainter extends CustomPainter {
     });
 
     final rawMax = smoothed.reduce((a, b) => a > b ? a : b);
-    final top = rawMax <= 0 ? 1.0 : rawMax;
+    // 纵轴顶格取整，保证网格线落在整数频次上。
+    final yMax = rawMax <= 0 ? 1.0 : rawMax.ceilToDouble();
 
-    const topPad = 4.0;
-    const basePad = 6.0; // 底部基线留白
-    final chartH = size.height - topPad - basePad;
-    double x(int i) => i / (days - 1) * size.width;
-    double y(double v) => topPad + chartH * (1 - v / top);
+    final chartW = size.width - _padLeft - _padRight;
+    final chartH = size.height - _padTop - _padBottom;
+    double x(int i) => _padLeft + i / (days - 1) * chartW;
+    double y(double v) => _padTop + chartH * (1 - v / yMax);
 
-    // 3) 整数频次网格线与基线。
+    // 3) 整数频次网格线 + 左侧刻度数字。
+    final gridStep = (yMax / 3).ceilToDouble().clamp(1, double.infinity);
     final grid = Paint()
       ..color = themeColor.withValues(alpha: 0.10)
       ..strokeWidth = 1;
-    final gridMax = top > 4 ? 4 : top.floor();
-    for (var g = 1; g <= gridMax; g++) {
-      canvas.drawLine(Offset(0, y(g.toDouble())), Offset(size.width, y(g.toDouble())), grid);
+    for (var g = gridStep; g <= yMax; g += gridStep) {
+      final gy = y(g.toDouble());
+      canvas.drawLine(Offset(_padLeft, gy), Offset(size.width - _padRight, gy), grid);
+      _paintLabel(canvas, g.toInt().toString(),
+          Offset(_padLeft - 4, gy), align: 1.0);
     }
+    // 基线。
     canvas.drawLine(
-      Offset(0, y(0)),
-      Offset(size.width, y(0)),
+      Offset(_padLeft, y(0)),
+      Offset(size.width - _padRight, y(0)),
       Paint()
-        ..color = themeColor.withValues(alpha: 0.18)
+        ..color = themeColor.withValues(alpha: 0.22)
         ..strokeWidth = 1,
     );
 
-    // 4) 折线 + 面积。
-    final line = Path();
+    // 4) 底部月份标注（每 2 个月一个，避免拥挤）。
+    int? lastLabelMonth;
     for (var i = 0; i < days; i++) {
-      final p = Offset(x(i), y(smoothed[i]));
-      if (i == 0) {
-        line.moveTo(p.dx, p.dy);
-      } else {
-        line.lineTo(p.dx, p.dy);
+      final d = start.add(Duration(days: i));
+      if (d.month != lastLabelMonth && d.day <= 3 && i > 0) {
+        lastLabelMonth = d.month;
+        if (d.month.isOdd) {
+          _paintLabel(canvas, '${d.month}月',
+              Offset(x(i), size.height - _padBottom + 3),
+              align: 0.5, small: true);
+        }
       }
     }
+
+    // 5) Catmull-Rom 平滑曲线。
+    final pts = [for (var i = 0; i < days; i++) Offset(x(i), y(smoothed[i]))];
+    final line = Path()..moveTo(pts.first.dx, pts.first.dy);
+    for (var i = 1; i < days; i++) {
+      final p0 = pts[(i - 2).clamp(0, days - 1)];
+      final p1 = pts[i - 1];
+      final p2 = pts[i];
+      final p3 = pts[(i + 1).clamp(0, days - 1)];
+      final c1 = Offset(p1.dx + (p2.dx - p0.dx) / 6, p1.dy + (p2.dy - p0.dy) / 6);
+      final c2 = Offset(p2.dx - (p3.dx - p1.dx) / 6, p2.dy - (p3.dy - p1.dy) / 6);
+      line.cubicTo(c1.dx, c1.dy, c2.dx, c2.dy, p2.dx, p2.dy);
+    }
+
+    // 6) 曲线下方渐变面积。
     final area = Path.from(line)
-      ..lineTo(size.width, y(0))
-      ..lineTo(0, y(0))
+      ..lineTo(pts.last.dx, y(0))
+      ..lineTo(pts.first.dx, y(0))
       ..close();
     canvas.drawPath(
       area,
@@ -83,22 +116,35 @@ class TrendLinePainter extends CustomPainter {
           begin: Alignment.topCenter,
           end: Alignment.bottomCenter,
           colors: [
-            themeColor.withValues(alpha: 0.32),
+            themeColor.withValues(alpha: 0.30),
             themeColor.withValues(alpha: 0.02),
           ],
         ).createShader(Rect.fromLTRB(0, 0, size.width, size.height)),
     );
+
+    // 7) 描边曲线（主题色渐变，左淡右浓强调“最近”）。
     canvas.drawPath(
       line,
       Paint()
-        ..color = themeColor
+        ..shader = LinearGradient(
+          colors: [
+            themeColor.withValues(alpha: 0.45),
+            themeColor,
+          ],
+        ).createShader(Rect.fromLTRB(_padLeft, 0, size.width, 0))
         ..style = PaintingStyle.stroke
         ..strokeWidth = 2
         ..strokeJoin = StrokeJoin.round
         ..isAntiAlias = true,
     );
 
-    // 5) 末端亮点。
+    // 8) 有记录的日期打圆点；末端亮点强调最新状态。
+    final dot = Paint()..color = themeColor;
+    for (var i = 0; i < days; i++) {
+      if (daily[i] > 0) {
+        canvas.drawCircle(Offset(x(i), y(daily[i].toDouble())), 2.2, dot);
+      }
+    }
     canvas.drawCircle(
       Offset(x(days - 1), y(smoothed.last)),
       3,
@@ -106,9 +152,33 @@ class TrendLinePainter extends CustomPainter {
     );
   }
 
+  /// 用 TextPainter 画小字标签；align: 0 左对齐、0.5 居中、1 右对齐（垂直居中于 y）。
+  void _paintLabel(Canvas canvas, String text, Offset anchor,
+      {double align = 0, bool small = false}) {
+    final tp = TextPainter(
+      text: TextSpan(
+        text: text,
+        style: TextStyle(
+          fontSize: small ? 9 : 10,
+          color: labelColor.withValues(alpha: 0.75),
+          height: 1.0,
+        ),
+      ),
+      textDirection: TextDirection.ltr,
+    )..layout();
+    final dx = switch (align) {
+      1.0 => anchor.dx - tp.width,
+      0.5 => anchor.dx - tp.width / 2,
+      _ => anchor.dx,
+    };
+    final dy = small ? anchor.dy : anchor.dy - tp.height / 2;
+    tp.paint(canvas, Offset(dx, dy));
+  }
+
   @override
   bool shouldRepaint(covariant TrendLinePainter old) {
     return old.themeColor != themeColor ||
+        old.labelColor != labelColor ||
         old.counts.length != counts.length ||
         old.days != days;
   }

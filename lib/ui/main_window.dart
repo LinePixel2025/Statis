@@ -56,18 +56,22 @@ class MainWindow extends StatelessWidget {
                   SectionHeader(icon: Icons.auto_awesome, title: 'AI 总结'),
                   const SizedBox(height: 12),
                   if (ai.generatingGlobal)
-                    const GlassCard(
-                      child: Row(
+                    GlassCard(
+                      child: Builder(builder: (context) => Row(
                         children: [
-                          SizedBox(
+                          const SizedBox(
                             width: 16,
                             height: 16,
                             child: CircularProgressIndicator(strokeWidth: 2),
                           ),
-                          SizedBox(width: 12),
-                          Text('正在生成全局总结…'),
+                          const SizedBox(width: 12),
+                          Text('正在生成全局总结…',
+                              style: TextStyle(
+                                  color: Theme.of(context)
+                                      .colorScheme
+                                      .onSurface)),
                         ],
-                      ),
+                      )),
                     )
                   else if (ai.globalSummary != null)
                     AiSummaryCard(
@@ -110,7 +114,8 @@ class _TitleBar extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
-    final fg = foregroundOnBackdrop(context);
+    // 标题与按钮压在 surface 着色 0.5 的模糊带上，按“着色后”的实际亮度反色。
+    final fg = foregroundOnTintedBackdrop(context, tintOpacity: 0.5);
     return SizedBox(
       height: _kBarHeight,
       child: Stack(
@@ -215,7 +220,7 @@ class _WindowButton extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final fg = foregroundOnBackdrop(context);
+    final fg = foregroundOnTintedBackdrop(context, tintOpacity: 0.5);
     return Tooltip(
       message: tooltip,
       child: InkWell(
@@ -243,22 +248,24 @@ class _EmptyHint extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final theme = Theme.of(context);
     return GlassCard(
       opacity: 0.3,
       padding: const EdgeInsets.all(24),
-      child: Column(
-        children: [
-          Icon(icon, size: 32, color: theme.colorScheme.onSurfaceVariant),
-          const SizedBox(height: 8),
-          Text(
-            text,
-            textAlign: TextAlign.center,
-            style: theme.textTheme.bodySmall
-                ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
-          ),
-        ],
-      ),
+      child: Builder(builder: (context) {
+        final theme = Theme.of(context);
+        return Column(
+          children: [
+            Icon(icon, size: 32, color: theme.colorScheme.onSurfaceVariant),
+            const SizedBox(height: 8),
+            Text(
+              text,
+              textAlign: TextAlign.center,
+              style: theme.textTheme.bodySmall
+                  ?.copyWith(color: theme.colorScheme.onSurfaceVariant),
+            ),
+          ],
+        );
+      }),
     );
   }
 }
