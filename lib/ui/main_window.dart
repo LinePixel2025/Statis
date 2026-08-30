@@ -28,10 +28,8 @@ class MainWindow extends StatelessWidget {
 
     return Scaffold(
       backgroundColor: Colors.transparent,
-      body: Center(
-        child: ConstrainedBox(
-          constraints: const BoxConstraints(maxWidth: 960),
-          child: Stack(
+      // 内容列随窗口宽度伸缩（不再固定 960 上限），最大化/拖拽调整时组件跟随变大。
+      body: Stack(
             fit: StackFit.expand,
             clipBehavior: Clip.none,
             children: [
@@ -93,8 +91,6 @@ class MainWindow extends StatelessWidget {
               // ---- 顶栏悬浮层 ----
               const Positioned(top: 0, left: 0, right: 0, child: _TitleBar()),
             ],
-          ),
-        ),
       ),
       // 添加事件浮动按钮
       floatingActionButton: FloatingActionButton.extended(

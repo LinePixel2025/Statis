@@ -17,7 +17,13 @@ class HeatmapPainter extends CustomPainter {
   @override
   void paint(Canvas canvas, Size size) {
     const gap = 3.0;
-    final cell = (size.height - gap * 6) / 7;
+    // 格子取高/宽两个方向的较小值：窄卡片按高度铺满，宽卡片按宽度铺满，剩余空间居中。
+    final cell = [
+      (size.height - gap * 6) / 7,
+      (size.width - gap * (weeks - 1)) / weeks,
+    ].reduce((a, b) => a < b ? a : b);
+    final gridWidth = weeks * cell + (weeks - 1) * gap;
+    final offsetX = ((size.width - gridWidth) / 2).clamp(0.0, double.infinity);
     final today = _dayOf(DateTime.now());
 
     // 起点：weeks 周前的周一。
@@ -30,7 +36,7 @@ class HeatmapPainter extends CustomPainter {
       for (int d = 0; d < 7; d++) {
         final day = start.add(Duration(days: w * 7 + d));
         if (day.isAfter(today)) return;
-        final x = w * (cell + gap);
+        final x = offsetX + w * (cell + gap);
         final y = d * (cell + gap);
         final count = counts[_dayOf(day)] ?? 0;
         final rect = Rect.fromLTWH(x, y, cell, cell);
