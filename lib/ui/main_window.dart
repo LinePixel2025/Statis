@@ -121,33 +121,39 @@ class _TitleBar extends StatelessWidget {
       child: Stack(
         clipBehavior: Clip.none,
         children: [
-          // 渐变模糊层：顶部模糊+轻着色最强，向下淡出至透明（不拦截指针）。
+          // 渐变模糊层（不拦截指针）。
+          // 注意：BackdropFilter 不能放进 ShaderMask——ShaderMask 的独立图层会让
+          // 模糊采样不到屏幕背后的内容。这里用多层带状模糊叠加模拟“自上而下淡出”：
+          // 每层覆盖区域递减、sigma 递减，顶部累计最强。着色渐变单独用 ShaderMask 叠加。
           Positioned(
             top: 0,
             left: -24,
             right: -24,
             height: _kBlurHeight,
             child: IgnorePointer(
-              child: ClipRect(
-                child: ShaderMask(
-                  shaderCallback: (rect) => const LinearGradient(
-                    begin: Alignment.topCenter,
-                    end: Alignment.bottomCenter,
-                    colors: [
-                      Color(0xFF000000),
-                      Color(0xD9000000),
-                      Color(0x00000000),
-                    ],
-                    stops: [0.0, 0.55, 1.0],
-                  ).createShader(rect),
-                  blendMode: BlendMode.dstIn,
-                  child: BackdropFilter(
-                    filter: ImageFilter.blur(sigmaX: 16, sigmaY: 16),
+              child: Stack(
+                fit: StackFit.expand,
+                children: [
+                  const _BlurBand(sigma: 4, bottomInset: 0),
+                  const _BlurBand(sigma: 8, bottomInset: _kBlurHeight * 1 / 3),
+                  const _BlurBand(sigma: 12, bottomInset: _kBlurHeight * 2 / 3),
+                  ShaderMask(
+                    shaderCallback: (rect) => const LinearGradient(
+                      begin: Alignment.topCenter,
+                      end: Alignment.bottomCenter,
+                      colors: [
+                        Color(0xFF000000),
+                        Color(0xD9000000),
+                        Color(0x00000000),
+                      ],
+                      stops: [0.0, 0.55, 1.0],
+                    ).createShader(rect),
+                    blendMode: BlendMode.dstIn,
                     child: Container(
                       color: theme.colorScheme.surface.withValues(alpha: 0.5),
                     ),
                   ),
-                ),
+                ],
               ),
             ),
           ),
@@ -199,6 +205,27 @@ class _TitleBar extends StatelessWidget {
             ),
           ),
         ],
+      ),
+    );
+  }
+}
+
+/// 顶栏渐变模糊的单层带状模糊：从顶部起、底部按 bottomInset 收缩。
+class _BlurBand extends StatelessWidget {
+  const _BlurBand({required this.sigma, required this.bottomInset});
+
+  final double sigma;
+  final double bottomInset;
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: EdgeInsets.only(bottom: bottomInset),
+      child: ClipRect(
+        child: BackdropFilter(
+          filter: ImageFilter.blur(sigmaX: sigma, sigmaY: sigma),
+          child: const SizedBox.expand(),
+        ),
       ),
     );
   }
