@@ -36,6 +36,9 @@ migrate_working_dir/
 # Inno Setup 构建产物
 /installer/
 
+# 本地工具目录
+.zcode/
+
 # Symbolication related
 app.*.symbols
 

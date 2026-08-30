@@ -2,13 +2,13 @@ import 'dart:ui';
 
 import 'package:flutter/material.dart';
 
-/// 毛玻璃卡片：对背后内容做模糊 + 半透明底色。
+/// 毛玻璃卡片：对背后内容做模糊，用高不透明度的亮色 surface 作为底色保证文字可读。
 class GlassCard extends StatelessWidget {
   const GlassCard({
     super.key,
     required this.child,
     this.blur = 12,
-    this.opacity = 0.55,
+    this.opacity = 0.82,
     this.radius = 16,
     this.padding = const EdgeInsets.all(16),
   });
@@ -29,8 +29,8 @@ class GlassCard extends StatelessWidget {
         child: Container(
           padding: padding,
           decoration: BoxDecoration(
-            color: theme.colorScheme.onSurface.withValues(alpha: 0.06)
-                .withValues(alpha: opacity * 0.2 + 0.08),
+            // 用亮色 surface 作面板底色，避免深色文字落在透明面上发灰看不清。
+            color: theme.colorScheme.surface.withValues(alpha: opacity),
             borderRadius: BorderRadius.circular(radius),
             border: Border.all(
               color: theme.colorScheme.onSurface.withValues(alpha: 0.10),

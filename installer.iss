@@ -1,6 +1,6 @@
-; Statis 1.0.1 Inno Setup 安装包脚本
+; Statis 1.0.2 Inno Setup 安装包脚本
 #define MyAppName "Statis"
-#define MyAppVersion "1.0.1"
+#define MyAppVersion "1.0.2"
 #define MyAppPublisher "LinePixel2025"
 #define MyAppExeName "statis.exe"
 
