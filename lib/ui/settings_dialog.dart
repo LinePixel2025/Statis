@@ -14,6 +14,7 @@ Future<void> showSettingsDialog(
   double bgBlur = settings.bgBlur;
   int summaryDays = settings.summaryDays;
   Color themeColor = settings.themeColor;
+  TrendKind trendKind = settings.trendKind;
 
   return showDialog<void>(
     context: context,
@@ -121,6 +122,25 @@ Future<void> showSettingsDialog(
                                     ),
                                   ),
                               ],
+                            ),
+                            const SizedBox(height: 16),
+                            Text('趋势展示',
+                                style: Theme.of(ctx).textTheme.titleSmall),
+                            const SizedBox(height: 8),
+                            SegmentedButton<TrendKind>(
+                              segments: const [
+                                ButtonSegment(
+                                    value: TrendKind.line,
+                                    icon: Icon(Icons.show_chart, size: 16),
+                                    label: Text('折线图')),
+                                ButtonSegment(
+                                    value: TrendKind.heatmap,
+                                    icon: Icon(Icons.grid_view, size: 16),
+                                    label: Text('热力图')),
+                              ],
+                              selected: {trendKind},
+                              onSelectionChanged: (s) =>
+                                  setState(() => trendKind = s.first),
                             ),
                             const SizedBox(height: 16),
                             Text('界面背景', style: Theme.of(ctx).textTheme.titleSmall),
@@ -236,6 +256,7 @@ Future<void> showSettingsDialog(
                 settings.setAiConfig(baseUrlCtl.text, apiKeyCtl.text, modelCtl.text);
                 settings.setSummaryDays(summaryDays);
                 settings.setThemeColor(themeColor);
+                settings.setTrendKind(trendKind);
                 settings.setBackground(bgKind, bgValue, bgBlur);
                 Navigator.pop(ctx);
               },

@@ -6,6 +6,9 @@ import 'package:shared_preferences/shared_preferences.dart';
 /// 背景类型。
 enum BgKind { none, color, image }
 
+/// 事件卡片展开区的趋势展示形式（可在设置-个性化中切换，持久化）。
+enum TrendKind { line, heatmap }
+
 /// 应用设置：主题色、背景、AI 配置、总结周期。
 class SettingsProvider extends ChangeNotifier {
   static const _keyThemeColor = 'theme_color';
@@ -16,6 +19,7 @@ class SettingsProvider extends ChangeNotifier {
   static const _keyAiApiKey = 'ai_api_key';
   static const _keyAiModel = 'ai_model';
   static const _keySummaryDays = 'summary_days';
+  static const _keyTrendKind = 'trend_kind';
 
   /// 预设主题色（个性化选项卡可选）。
   static const presetColors = <Color>[
@@ -35,6 +39,7 @@ class SettingsProvider extends ChangeNotifier {
   String _aiApiKey = '';
   String _aiModel = 'deepseek-chat';
   int _summaryDays = 7;
+  TrendKind _trendKind = TrendKind.line;
 
   Color get themeColor => _themeColor;
   BgKind get bgKind => _bgKind;
@@ -46,6 +51,9 @@ class SettingsProvider extends ChangeNotifier {
 
   /// AI 总结自动生成的周期（天）。
   int get summaryDays => _summaryDays;
+
+  /// 事件趋势展示形式（折线图 / 热力图）。
+  TrendKind get trendKind => _trendKind;
   bool get aiConfigured => _aiApiKey.isNotEmpty && _aiBaseUrl.isNotEmpty;
 
   /// 背景图片文件是否仍存在（文件可能被移动/删除）。
@@ -67,6 +75,10 @@ class SettingsProvider extends ChangeNotifier {
     _aiApiKey = sp.getString(_keyAiApiKey) ?? '';
     _aiModel = sp.getString(_keyAiModel) ?? _aiModel;
     _summaryDays = sp.getInt(_keySummaryDays) ?? 7;
+    _trendKind = TrendKind.values.firstWhere(
+      (k) => k.name == (sp.getString(_keyTrendKind) ?? 'line'),
+      orElse: () => TrendKind.line,
+    );
     notifyListeners();
   }
 
@@ -110,6 +122,13 @@ class SettingsProvider extends ChangeNotifier {
     if (days == _summaryDays) return;
     _summaryDays = days;
     _persist(_keySummaryDays, days);
+    notifyListeners();
+  }
+
+  void setTrendKind(TrendKind kind) {
+    if (kind == _trendKind) return;
+    _trendKind = kind;
+    _persist(_keyTrendKind, kind.name);
     notifyListeners();
   }
 }

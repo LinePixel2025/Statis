@@ -1,9 +1,12 @@
 import 'package:flutter/material.dart';
+import 'package:provider/provider.dart';
 
 import '../models/models.dart';
 import '../providers/events_provider.dart';
+import '../providers/settings_provider.dart';
 import '../services/ai_summary_provider.dart';
 import '../ui/heatmap.dart';
+import '../ui/trend_line.dart';
 import 'glass_card.dart';
 
 /// 主界面事件卡片：紧凑摘要行（名称、分类、统计、记录按钮、展开箭头）+ 可展开详情（热力图、AI 摘要、关键词、删除）。
@@ -118,6 +121,7 @@ class _EventCardState extends State<EventCard> {
   Widget build(BuildContext context) {
     final theme = Theme.of(context);
     final color = theme.colorScheme.primary;
+    final trendKind = context.watch<SettingsProvider>().trendKind;
     final records = widget.events.recordsOf(widget.event.id!);
     final total = records.length;
     final last = records.isEmpty ? null : records.first.occurredAt;
@@ -200,10 +204,15 @@ class _EventCardState extends State<EventCard> {
               height: 80,
               width: double.infinity,
               child: CustomPaint(
-                painter: HeatmapPainter(
-                  counts: countByDay(records.map((r) => r.occurredAt)),
-                  themeColor: color,
-                ),
+                painter: trendKind == TrendKind.heatmap
+                    ? HeatmapPainter(
+                        counts: countByDay(records.map((r) => r.occurredAt)),
+                        themeColor: color,
+                      )
+                    : TrendLinePainter(
+                        counts: countByDay(records.map((r) => r.occurredAt)),
+                        themeColor: color,
+                      ),
               ),
             ),
             const SizedBox(height: 8),
